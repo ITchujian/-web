@@ -105,8 +105,7 @@
      # 验证：提示相应版本即成功
      cd ..
      python3 --version
-     # 删除 tgz 包
-     rm -f Python-3.10.10.tgz
+     # 删除解压后的文件夹
      rm -rf Python-3.10.10
      ```
 
@@ -127,18 +126,22 @@
   
   2. 创建
   
-     ```
+     ```bash
      mkdir /python & mkdir /python/envs
+     virtualenv /python/envs/xhs --python=python3.10
      ```
-  
-     
   
   3. 激活方式
+  
+     ```bash
+     source /python/envs/xhs/bin/activate
+     ```
   
 - 安装依赖项
 
   ```bash
-  pip install 
+  cd ~/xhs/backend
+  pip install -r requirements.txt
   ```
 
   
