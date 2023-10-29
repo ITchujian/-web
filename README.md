@@ -193,7 +193,28 @@
      FLUSH PRIVILEGES;
      ```
 
+- 安装 `uwsgi`
+  
+  1. 安装
+  
+     ```bash
+     source /envs/xhs/bin/activate
+     pip install uwsgi
+     ```
+  
+  2. 基于 `uwsgi` 运行
+  
+     ```sh
+     cd /projects/xhsweb/backend
+     uwsgi --ini xhs_uwsgi.ini
+      
+     ```
+  
      
+  
+  3. 
+  
+- 
 
 ### 运行步骤
 
