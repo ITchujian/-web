@@ -18,104 +18,92 @@
 
 ## 安装和运行
 
-### 前提条件
+### 部署教程
 
 - Git
 
   1. 安装 git
 
      ```bash
+     yum update
      yum install -y git
      ```
-  
+
   2. 克隆项目
-  
+
      ```bash
+     mkdir /projects
+     cd /projects & mkdir xhsweb
+     cd xhsweb
      git clone git@gitee.com:xiaogugyx/redbook-automation-flask.git
      ```
 
   3. 适当调整文件名称等
-  
+
      ```bash
      mv redbook-automation-flask/ backend
      ```
 
 - Python 3.10.10
 
-  1. 换源
-
-     ```bash
-     #备份原有源
-     tar -zcvf CentOS-bk.tar.gz /etc/yum.repos.d/CentOS-*
-     #替换为阿里云源
-     curl -o /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
-     curl -o /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-7.repo
-     ```
-
-  2. 安装 gcc
+  1. 安装 gcc
 
      ```bash
      yum install -y gcc
      ```
-
-  3. 安装 Python 依赖
-
+  
+  2. 安装 openssl
+  
      ```bash
-     yum -y groupinstall "Development tools"
-     yum install -y ncurses-devel gdbm-devel xz-devel sqlite-devel tk-devel uuid-devel readline-devel bzip2-devel libffi-devel
-     yum install -y openssl-devel openssl11 openssl11-devel
-     # 由于换源了，openssl 无法更新到 新版，因此需要卸载
-     whereis openssl |xargs rm -frv
-     wget http://www.openssl.org/source/openssl-1.1.1.tar.gz --no-check-certificate
-     tar -zxvf openssl-1.1.1.tar.gz
-     cd openssl-1.1.1
-     ./config --prefix=/usr/local/openssl shared zlib
-     make && make install 
-     # 设置环境变量 LD_LIBRARY_PATH
-     echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/openssl/lib" >>  /etc/profile
-     source /etc/profile
-     ```
-
-  4. 下载 Python 源码
-
-     倘若服务器上不存在 `wget`，那么你需要安装它：
-
-     ```bash
+     yum remove openssl
+     cd /opt
      yum install -y wget
+     wget https://www.openssl.org/source/openssl-1.1.1n.tar.gz --no-check-certificate
+     tar -zxf openssl-1.1.1n.tar.gz
+     cd openssl-1.1.1n
+     ./config --prefix=/usr/local/openssl
+     make -j 2
+     make install
+     ln -sf /usr/local/openssl/bin/openssl /usr/bin/openssl
+     vim /etc/ld.so.conf  # 末尾添加 /usr/local/openssl/lib
+     ldconfig -v
+     openssl version
      ```
-
-     接下来，通过 `wget` 下载 `Python 3.10.10` 的 `tgz` 包
+  
+  3. 下载其他依赖
+  
+     ```bash
+     yum -y install zlib-devel bzip2-devel openssl-devel ncurses-devel sqlite-devel readline-devel tk-devel gdbm-devel db4-devel libpcap-devel xz-devel
+     yum install -y libffi-devel zlib1g-dev
+     yum install zlib* -y
+     ```
+  
+  4. 下载 Python 源码
 
      ```bash
      wget https://www.python.org/ftp/python/3.10.10/Python-3.10.10.tgz
      ```
 
      当然，上述只是开个玩笑而已，我已经将 `Python 3.10.10` 的 `tgz` 包放置于仓库中，当使用 `git` 的 `clone` 命令后，将该包移动到其他地方进行下一步即可。
-
+  
   5. 解压 & 编译 & 安装
 
      ```bash
      # 解压 tgz 包
-     tar -zxvf Python-3.10.10.tgz
+     tar -zxf Python-3.10.10.tgz
      # 编译并安装
      cd Python-3.10.10
-     mkdir /usr/local/python3
-     ./configure --prefix=/usr/local/python3 --enable-optimizations --with-openssl=/usr/local/openssl
-     make -j8 && make install
+     sed -i 's/PKG_CONFIG openssl /PKG_CONFIG openssl11 /g' configure
+     ./configure
+     make
+     make altinstall
      # 验证：提示相应版本即成功
      cd ..
-     python3 --version
+     python3.10 --version
      # 删除解压后的文件夹
      rm -rf Python-3.10.10
      ```
-
-  6. pip 换源
-
-     ```bash
-     pip3 config set global.index-url http://mirrors.aliyun.com/pypi/simple/
-     pip3 config set global.trusted-host mirrors.aliyun.com
-     ```
-
+  
 - 安装 Python 的虚拟环境
 
   1. 安装
@@ -127,32 +115,56 @@
   2. 创建
   
      ```bash
-     mkdir /python & mkdir /python/envs
-     virtualenv /python/envs/xhs --python=python3.10
+     mkdir /envs
+     virtualenv /envs/xhs --python=python3.10
      ```
   
   3. 激活方式
   
      ```bash
-     source /python/envs/xhs/bin/activate
+     source /envs/xhs/bin/activate
      ```
   
-- 安装依赖项
+- 安装项目的依赖项
 
   ```bash
-  cd ~/xhs/backend
-  pip install -r requirements.txt
+  # 先激活虚拟环境
+  cd /projects/xhsweb/backend
+  pip install -r requirements.txt  
+  # 当然，xhsAPI 是我自己写的包，因此通过此途径无法直接安装，需要可以联系我，你可以先安装一下三个
+  pip install Flask==2.2.5 PyMySQL==1.1.0 DBUtils=3.0.3
+  pip insatll xhsAPI-2.0.0.tar.gz
   ```
 
-  
+- 安装 MySQL
 
-### 安装步骤
+  1. 安装 MySQL 的分支
 
-提供安装项目所需的步骤，例如：
+     ```bash
+     yum install -y mariadb-server
+     ```
 
-1. 克隆项目到本地：`git clone https://github.com/your/repository.git`
-2. 进入项目目录：`cd project-directory`
-3. 安装依赖项：`pip install -r requirements.txt`
+  2. 设置开机启动并启动服务
+
+     ```bash
+     systemctl enable mariadb
+     systemctl start mariadb
+     # 查看
+     systemctl status mariadb
+     # 出现 Active: active (running) 即可
+     ```
+
+  3. 账号初始化并创建数据库
+
+     ```sql
+     cd /projects/xhsweb/backend
+     mysql -u root -p
+     UPDATE user SET password=password('')
+     ```
+
+  4. 运行 `init-mysql.py` 文件
+
+     
 
 ### 运行步骤
 
@@ -164,13 +176,6 @@
 ## API 文档
 
 如果项目提供 API 接口，可以在此处提供 API 文档的链接或说明。
-
-## 部署
-
-提供项目部署的相关信息，例如：
-
-- 部署到生产环境的步骤和注意事项
-- 配置文件示例
 
 ## 贡献
 

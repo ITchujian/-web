@@ -17,8 +17,8 @@ class MySQL:
             blocking=True,
             ping=0,
             host='localhost',
-            user='root',
-            password='2001',
+            user='normal',
+            password='20010908xygGYX',
             database='redbook',
             charset='utf8',
         )
