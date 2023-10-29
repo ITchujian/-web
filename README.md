@@ -154,15 +154,44 @@
      # 出现 Active: active (running) 即可
      ```
 
-  3. 账号初始化并创建数据库
+  3. 账号初始化并执行sql
 
      ```sql
      cd /projects/xhsweb/backend
      mysql -u root -p
-     UPDATE user SET password=password('')
+     # 导入项目数据库
+     source redbook.sql;
+     # 更新root密码
+     UPDATE mysql.user SET password=password('<your-password>') WHERE mysql.user='root';
+     FLUSH PRIVILEGES;
+     # 创建用户
+     INSERT INTO mysql.user(user, host, password) values ('normal', '%', password('<your-password>')); 
+     FLUSH PRIVILEGES;
+     # 赋予表权限
+     GRANT ALL PRIVILEGES ON redbook.* to normal@'%';
+     FLUSH PRIVILEGES;
      ```
 
-  4. 运行 `init-mysql.py` 文件
+     完成以上操作后你会发现，创建的用户 `normal` 在本地无需密码就能登录，为了安全性考虑，我们需要删除某些本地用户。
+
+     ```sql
+     SELECT User, Host, Password FROM mysql.user;
+     """ input
+     +--------+---------------+-------------------------------------------+
+     | User   | Host          | Password                                  |
+     +--------+---------------+-------------------------------------------+
+     | root   | localhost     | *1880C4770E85923D54E015CA6FBCE031713FFC4A |
+     | root   | vm-0-4-centos | *1880C4770E85923D54E015CA6FBCE031713FFC4A |
+     | root   | 127.0.0.1     | *1880C4770E85923D54E015CA6FBCE031713FFC4A |
+     | root   | ::1           | *1880C4770E85923D54E015CA6FBCE031713FFC4A |
+     |        | localhost     |                                           |
+     |        | vm-0-4-centos |                                           |
+     | normal | %             | *1880C4770E85923D54E015CA6FBCE031713FFC4A |
+     +--------+---------------+-------------------------------------------+
+     """
+     DELETE FROM mysql.user WHERE User='' and Password='';
+     FLUSH PRIVILEGES;
+     ```
 
      
 
