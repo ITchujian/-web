@@ -31,13 +31,13 @@
   2. 克隆项目
   
      ```bash
-   git clone git@gitee.com:xiaogugyx/redbook-automation-flask.git
+     git clone git@gitee.com:xiaogugyx/redbook-automation-flask.git
      ```
 
   3. 适当调整文件名称等
   
      ```bash
-   mv redbook-automation-flask/ backend
+     mv redbook-automation-flask/ backend
      ```
 
 - Python 3.10.10
