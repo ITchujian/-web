@@ -2,7 +2,7 @@
 
 
 
-# 基于 `Flask` 与 `xhsAPI` 开发的**小红书自动跑 web **后端
+# 基于 `Flask` 与 `xhsAPI` 开发的小红书自动跑 web 后端
 
 ## 功能特性
 
