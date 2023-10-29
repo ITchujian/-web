@@ -20,6 +20,26 @@
 
 ### 前提条件
 
+- Git
+
+  1. 安装 git
+
+     ```bash
+     yum install -y git
+     ```
+  
+  2. 克隆项目
+  
+     ```bash
+   git clone git@gitee.com:xiaogugyx/redbook-automation-flask.git
+     ```
+
+  3. 适当调整文件名称等
+  
+     ```bash
+   mv redbook-automation-flask/ backend
+     ```
+
 - Python 3.10.10
 
   1. 换源
@@ -44,6 +64,16 @@
      yum -y groupinstall "Development tools"
      yum install -y ncurses-devel gdbm-devel xz-devel sqlite-devel tk-devel uuid-devel readline-devel bzip2-devel libffi-devel
      yum install -y openssl-devel openssl11 openssl11-devel
+     # 由于换源了，openssl 无法更新到 新版，因此需要卸载
+     whereis openssl |xargs rm -frv
+     wget http://www.openssl.org/source/openssl-1.1.1.tar.gz --no-check-certificate
+     tar -zxvf openssl-1.1.1.tar.gz
+     cd openssl-1.1.1
+     ./config --prefix=/usr/local/openssl shared zlib
+     make && make install 
+     # 设置环境变量 LD_LIBRARY_PATH
+     echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/openssl/lib" >>  /etc/profile
+     source /etc/profile
      ```
 
   4. 下载 Python 源码
@@ -65,20 +95,46 @@
   5. 解压 & 编译 & 安装
 
      ```bash
-     # 解压
-     tar -xvf Python-3.10.10.tgz
-     # 编译
+     # 解压 tgz 包
+     tar -zxvf Python-3.10.10.tgz
+     # 编译并安装
      cd Python-3.10.10
-     ./configure
-     make && make install
+     mkdir /usr/local/python3
+     ./configure --prefix=/usr/local/python3 --enable-optimizations --with-openssl=/usr/local/openssl
+     make -j8 && make install
+     # 验证：提示相应版本即成功
+     cd ..
+     python3 --version
+     # 删除 tgz 包
+     rm -f Python-3.10.10.tgz
+     rm -rf Python-3.10.10
      ```
 
   6. pip 换源
 
      ```bash
-     
+     pip3 config set global.index-url http://mirrors.aliyun.com/pypi/simple/
+     pip3 config set global.trusted-host mirrors.aliyun.com
      ```
 
+- 安装 Python 的虚拟环境
+
+  1. 安装
+  
+     ```bash
+     pip3 install virtualenv
+     ```
+  
+  2. 创建
+  
+     ```
+     mkdir /python & mkdir /python/envs
+     ```
+  
+     
+  
+  3. 激活方式
+  
 - 安装依赖项
 
   ```bash
