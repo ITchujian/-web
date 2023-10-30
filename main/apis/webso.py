@@ -9,7 +9,7 @@ from flask_socketio import emit, SocketIO
 from ..models.monitor import fixed_monitors, FixedMonitor, DynamicMonitor
 
 websocket_bp = Blueprint('websocket', __name__)
-socketio = SocketIO()
+socketio = SocketIO(async_mode='threading')
 
 
 @socketio.on('connect')
