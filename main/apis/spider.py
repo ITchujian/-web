@@ -204,8 +204,10 @@ def saveConfigure():
                 data[key] = str(region[1])
             elif float(value) < region[0]:
                 data[key] = str(region[0])
-    mysql.update('config', condition='id=1', data=data)
-    config_record = mysql.select('config', condition='id=1')
+    if config_record := mysql.select('config', condition='id=1'):
+        mysql.update('config', condition='id=1', data=data)
+    else:
+        mysql.insert('config', data=data)
     return jsonify({
         'success': True,
         'msg': '保存配置成功',
