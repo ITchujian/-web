@@ -12,7 +12,6 @@ from .apis.webso import websocket_bp, socketio
 
 # 跨域支持
 def af_request(resp):
-    resp = make_response(resp)
     resp.headers['Access-Control-Allow-Origin'] = '*'
     resp.headers['Access-Control-Allow-Methods'] = '*'
     resp.headers['Access-Control-Allow-Headers'] = 'Authorization,content-type,token,id'
