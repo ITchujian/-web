@@ -2,7 +2,7 @@
 
 
 
-# 基于 `Flask` 与 `xhsAPI` 开发的小红书自动跑 web 后端
+# 小红书自动跑 web 后端
 
 ## 一、功能特性
 
@@ -18,7 +18,11 @@
 
 ## 三、安装和运行
 
-### 3.1 Git
+**部署环境**： 腾讯云轻量级应用服务器 + CentOS 7.6 64bit
+
+**项目目录**：`/projects/xhsweb/frontend` 存放 vue 打包后的项目，`/projects/xhsweb/backend` 存放 Flask 项目（当前仓库）
+
+### 3.1 安装 `Git`
 
 1. 安装 git
 
@@ -34,12 +38,15 @@
    cd /projects & mkdir xhsweb
    cd xhsweb
    git clone git@gitee.com:xiaogugyx/redbook-automation-flask.git
+   # 克隆后续需要的服务器应用安装的一些工具
+   git clone git@gitee.com:xiaogugyx/server-deployment-kit.git
    ```
 
 3. 适当调整文件名称等
 
    ```bash
    mv redbook-automation-flask/ backend
+   mv server-deployment-kit/ serverkit
    ```
 
 ### 3.2 安装 `node.js`
@@ -49,8 +56,7 @@
   1. 安装 nodejs
 
      ```bash
-     cd /root
-     wget https://nodejs.org/dist/v18.17.1/node-v18.17.1-linux-x64.tar.xz
+     cd /projects/serverkit/nodejs
      tar xvf node-v18.17.1-linux-x64.tar.xz 
      mv node-v18.17.1-linux-x64 ~
      ln -s /root/node-v18.17.1-linux-x64/bin/node /usr/local/bin/node
@@ -80,7 +86,8 @@
   3. 安装 make4.3
 
      ```bash
-     wget https://ftp.gnu.org/gnu/make/make-4.3.tar.gz
+     cd /projects/serverkit/nodejs
+     # 或者 wget https://ftp.gnu.org/gnu/make/make-4.3.tar.gz
      tar -xzvf make-4.3.tar.gz && cd make-4.3/
      ./configure  --prefix=/usr/local/make
      make && make install
@@ -91,7 +98,8 @@
   4. 安装 glibc-2.28
 
      ```bash
-     wget http://ftp.gnu.org/gnu/glibc/glibc-2.28.tar.gz
+     cd /projects/serverkit/nodejs
+     # 或者 wget http://ftp.gnu.org/gnu/glibc/glibc-2.28.tar.gz
      tar xf glibc-2.28.tar.gz 
      cd glibc-2.28/ && mkdir build  && cd build
      ../configure --prefix=/usr --disable-profile --enable-add-ons --with-headers=/usr/include --with-binutils=/usr/bin
@@ -101,7 +109,8 @@
 
      ```bash
      yum install libstdc++.so.6 -y
-     wget http://ftp.de.debian.org/debian/pool/main/g/gcc-8/libstdc++6_8.3.0-6_amd64.deb
+     cd /projects/serverkit/nodejs
+     # 或者 wget http://ftp.de.debian.org/debian/pool/main/g/gcc-8/libstdc++6_8.3.0-6_amd64.deb
      ar -x libstdc++6_8.3.0-6_amd64.deb
      tar -xvf data.tar.xz
      cp usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.25 /usr/lib64/
@@ -119,7 +128,13 @@
 
      但是，压根没有必要照着上面的做，可以运行我提供的两个 .sh 文件，`setup-nodejs1.sh` 是利用了 nodejs 官方自动安装的脚本，`setup-nodejs2.sh` 则是上述手动安装补坑的脚本文件，执行 sh 文件前务必记得修改好权限。
 
-### 3.3 Python 3.10
+     ```bash
+     # 接下来不要忘记安装依赖哦
+     cd /projects/serverkit/nodejs
+     npm install jsdom
+     ```
+
+### 3.3 安装 `Python3.10`
 
 1. 安装 gcc
 
@@ -155,11 +170,10 @@
 4. 下载 Python 源码
 
    ```bash
-   wget https://www.python.org/ftp/python/3.10.10/Python-3.10.10.tgz
+   cd /projects/serverkit/python
+   # 或者 wget https://www.python.org/ftp/python/3.10.10/Python-3.10.10.tgz
    ```
-
-   当然，上述只是开个玩笑而已，我已经将 `Python 3.10.10` 的 `tgz` 包放置于仓库中，当使用 `git` 的 `clone` 命令后，将该包移动到其他地方进行下一步即可。
-
+   
 5. 解压 & 编译 & 安装
 
    ```bash
@@ -205,7 +219,7 @@
   # 先激活虚拟环境
   cd /projects/xhsweb/backend
   pip install -r requirements.txt  
-  # 当然，xhsAPI 是我自己写的包，因此通过此途径无法直接安装，需要可以联系我
+  # 当然，还有一个 xhsAPI 是我自己写的包，通过此途径无法直接安装，需要可以联系我
   pip insatll xhsAPI-2.0.0.tar.gz
   ```
 
@@ -278,7 +292,7 @@
   2. 基于 `uwsgi` 运行
 
      ```sh
-     cd /projects/xhsweb/backend
+     cd /projects/serverkit/
      ./uwsgi-tool.sh start
      ```
 
@@ -300,7 +314,7 @@
   2. 覆盖原有配置
 
      ```bash
-     cp nginx.conf /etc/nginx/nginx.conf
+     cp /projects/serverkit/nginx.conf /etc/nginx/nginx.conf
      ```
 
   3. 设置开机启动并启动
@@ -311,9 +325,191 @@
      ```
 
 
-## API 文档
+## 四、API 文档
 
-如果项目提供 API 接口，可以在此处提供 API 文档的链接或说明。
+**base api prefix**: api/spider
+
+### 4.1 获取二维码
+
+- 请求方法：GET
+- 路由：/qrcode
+- 功能：获取登录二维码
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "获取二维码成功",
+      "data": "二维码数据"
+  }
+  ```
+
+### 4.2 获取二维码状态
+
+- 请求方法：GET
+- 路由：/qrcode/state
+- 参数：
+  - qrId：二维码ID
+  - code：验证码
+- 功能：获取登录二维码的状态
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "等待扫码",
+      "data": "登录信息"
+  }
+  ```
+  或
+  ```json
+  {
+      "success": true,
+      "msg": "登录成功",
+      "data": "登录信息"
+  }
+  ```
+  或
+  ```json
+  {
+      "success": true,
+      "msg": "二维码已过期",
+      "data": {}
+  }
+  ```
+  或
+  ```json
+  {
+      "success": true,
+      "msg": "未知错误呀",
+      "data": {}
+  }
+  ```
+
+### 4.3 创建机器爬虫
+
+- 请求方法：POST
+- 路由：/create
+- 参数：表单数据包含机器爬虫的相关信息
+- 功能：创建机器爬虫
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "机器爬虫创建成功",
+      "data": {
+          "机器爬虫的相关信息"
+      }
+  }
+  ```
+
+### 4.4 获取机器爬虫列表
+
+- 请求方法：GET
+- 路由：/load
+- 功能：获取机器爬虫列表
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "机器爬虫列表获取成功",
+      "data": [
+          {
+              "机器爬虫1的相关信息"
+          },
+          {
+              "机器爬虫2的相关信息"
+          },
+          ...
+      ]
+  }
+  ```
+
+### 4.5 删除机器爬虫
+
+- 请求方法：GET
+- 路由：/delete
+- 参数：sid（机器爬虫ID）
+- 功能：删除指定ID的机器爬虫
+- 返回结果：与获取机器爬虫列表的返回结果相同
+
+### 4.6 设置机器爬虫状态
+
+- 请求方法：POST
+- 路由：/set_state
+- 参数：
+  - sid：机器爬虫ID
+  - run：运行状态（true表示激活，false表示暂停）
+- 功能：设置机器爬虫的运行状态
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "已激活",
+      "data": {}
+  }
+  ```
+  或
+  ```json
+  {
+      "success": true,
+      "msg": "已暂停",
+      "data": {}
+  }
+  ```
+
+### 4.7 获取敏感词列表
+
+- 请求方法：GET
+- 路由：/sensitive_words
+- 功能：获取敏感词列表
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "获取敏感词成功",
+      "data": [
+          "敏感词1",
+          "敏感词2",
+          ...
+      ]
+  }
+  ```
+
+### 4.8 获取配置信息
+
+- 请求方法：GET
+- 路由：/configure/get
+- 功能：获取机器爬虫的配置信息
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "获取配置成功",
+      "data": {
+          "配置字段1": "值1",
+          "配置字段2": "值2",
+          ...
+      }
+  }
+  ```
+
+### 4.9 保存配置信息
+
+- 请求方法：POST
+- 路由：/configure/set
+- 参数：表单数据包含配置信息
+- 功能：保存机器爬虫的配置信息
+- 返回结果：
+  ```json
+  {
+      "success": true,
+      "msg": "保存配置成功",
+      "data": {
+          "配置字段1": "新值1",
+          "配置字段2": "新值2",
+          ...
+      }
+  }
+  ```
 
 ## 参考资料
 

@@ -5,23 +5,12 @@
 @Description: Created in backend.
 """
 from dbutils.pooled_db import PooledDB
-import pymysql
+from ..config.settings import Config
 
 
 class MySQL:
     def __init__(self):
-        self.pool = PooledDB(
-            creator=pymysql,
-            mincached=2,
-            maxconnections=8,
-            blocking=True,
-            ping=0,
-            host='localhost',
-            user='normal',
-            password='20010908xygGYX',
-            database='redbook',
-            charset='utf8',
-        )
+        self.pool = PooledDB(**Config.DBPOOL_PARAMS())
 
     @staticmethod
     def dbing(func):
