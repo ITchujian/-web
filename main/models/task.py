@@ -300,25 +300,26 @@ class RetryHandler(Handler):
                             if comment['content'] == fixed_monitors[spider.sid].task_comment and \
                                     comment['user_info']['user_id'] == spider.userId:
                                 if comment['status'] != 0:
-                                    self.retry_comment(comment, spider)
-                            else:
-                                self.retry_comment(comment, spider)
-
+                                    self.retry_comment(note_id, spider)
+                                    comment['status'] = 0
+                                    continue
+                                break
+                        else:
+                            self.retry_comment(note_id, spider)
                     break
 
-    def retry_comment(self, comment, spider):
+    def retry_comment(self, note_id, spider):
         fixed_monitors[spider.sid].failure_comment += 1
         fixed_monitors[spider.sid].success_comment -= 1
         DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '评论状态',
-                                    f'该评论已经被屏蔽，地址是 {noteBaseUrl}{comment["note_id"]}']
+                                    f'该评论已经被屏蔽，地址是 {noteBaseUrl}{note_id}']
         if spider.isRetryAfterFailure:
             time.sleep(1)
             spider.state = 6
             fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
             for i in range(spider.retryTimes):
                 self.timer(spider)
-                response = self.comment.post(comment["note_id"],
-                                             fixed_monitors[spider.sid].task_comment)
+                response = self.comment.post(note_id, fixed_monitors[spider.sid].task_comment)
                 if response['code'] == 0:
                     DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
                                                 '重评状态',
