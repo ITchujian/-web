@@ -81,7 +81,7 @@ class Handler:
     @staticmethod
     def trace(func):
         @functools.wraps(func)
-        def inner(self, spider, tasks, *args, **kwargs):
+        def inner(self, spider, tasks: dict, *args, **kwargs):
             try:
                 # 执行函数
                 result = func(self, spider, tasks, *args, **kwargs)
@@ -370,7 +370,7 @@ class LikeHandler(Handler):
 
 class FollowHandler(Handler):
     @Handler.trace
-    def handle(self, spider, tasks):
+    def handle(self, spider, tasks: dict):
         spider.state = 9
         fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
         self.pause(spider)
@@ -386,12 +386,12 @@ class FollowHandler(Handler):
                                                     '关注失败']
                     break
         # 当前任务标记完成
-        for note_id, state in tasks.items():
+        for index, (note_id, state) in enumerate(tasks.items()):
             if not state:
                 tasks[note_id] = True
                 fixed_monitors[spider.sid].task_progress += 1
                 DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '任务状态',
-                                            f'任务 {noteBaseUrl}{note_id} 已完成']
+                                            f'第{index + 1}任务 {noteBaseUrl}{note_id} 已完成']
                 break
         # 非循环模式下 检测总任务是否完成
         if not spider.isCyclicMode and sum(tasks.values()) == spider.taskCount:
