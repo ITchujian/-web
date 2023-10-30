@@ -131,8 +131,8 @@
   # 先激活虚拟环境
   cd /projects/xhsweb/backend
   pip install -r requirements.txt  
-  # 当然，xhsAPI 是我自己写的包，因此通过此途径无法直接安装，需要可以联系我，你可以先安装一下三个
-  pip install Flask==2.2.5 PyMySQL==1.1.0 DBUtils=3.0.3
+  # 当然，xhsAPI 是我自己写的包，因此通过此途径无法直接安装，需要可以联系我，你可以先安装一下其他的
+  pip install Flask==2.2.5 PyMySQL==1.1.0 DBUtils=3.0.3 flask_cors==4.0.0 flask_socketio==5.3.6
   pip insatll xhsAPI-2.0.0.tar.gz
   ```
 
@@ -207,13 +207,36 @@
      ```sh
      cd /projects/xhsweb/backend
      uwsgi --ini xhs_uwsgi.ini
-      
+     uwsgi --ini xhs_uwsgi.ini & # 后台运行
+     ps -ef | grep xhs_uwsgi
+     kill -9 <id>
      ```
   
      
   
   3. 
   
+- 安装 `nginx`
+
+  1. 安装
+
+     ```sh
+     yum install -y nginx
+     ```
+
+  2. 配置
+
+     ```
+     cd /etc/nginx/
+     rm nginx.conf
+     vim nginx.conf
+     
+     ```
+
+     
+
+  3. 
+
 - 
 
 ### 运行步骤
