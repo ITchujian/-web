@@ -209,5 +209,5 @@ def saveConfigure():
     return jsonify({
         'success': True,
         'msg': '保存配置成功',
-        'data': dict(zip(config_fields, config_record[0] if config_record else [])),
+        'data': config_record,
     })
