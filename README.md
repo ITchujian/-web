@@ -7,7 +7,10 @@
 ## 一、功能特性
 
 - 对接基于 `vue2` 开发的 **小红书自动跑 web** 前端；
+
 - 提供一系列小红书自动化操作爬虫的`创建`、`删除`、`监控`等接口。
+
+  ![责任链](https://gitee.com/xiaogugyx/drawing-bed/raw/master/%E8%B4%A3%E4%BB%BB%E9%93%BE.jpg)
 
 ## 二、技术栈
 
