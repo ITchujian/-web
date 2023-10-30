@@ -6,7 +6,7 @@
 
 ## 一、功能特性
 
-- 对接基于 `vue2` 开发的**小红书自动跑 web **前端；
+- 对接基于 `vue2` 开发的 **小红书自动跑 web** 前端；
 - 提供一系列小红书自动化操作爬虫的`创建`、`删除`、`监控`等接口。
 
 ## 二、技术栈
@@ -151,12 +151,10 @@
    wget https://www.openssl.org/source/openssl-1.1.1n.tar.gz --no-check-certificate
    tar -zxf openssl-1.1.1n.tar.gz
    cd openssl-1.1.1n
-   ./config --prefix=/usr/local/openssl
+   ./config --prefix=/usr/local/openssl shared zlib 
    make && make install
-   ln -sf /usr/local/openssl/bin/openssl /usr/bin/openssl
-   vim /etc/ld.so.conf  # 末尾添加 /usr/local/openssl/lib
-   ldconfig -v
-   openssl version
+   echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/openssl/lib" >>  /etc/profile
+   source /etc/profile
    ```
    
 3. 下载其他依赖
@@ -181,15 +179,18 @@
    tar -zxf Python-3.10.10.tgz
    # 编译并安装
    cd Python-3.10.10
-   sed -i 's/PKG_CONFIG openssl /PKG_CONFIG openssl11 /g' configure
-   ./configure
-   make
-   make altinstall
-   # 验证：提示相应版本即成功
+   ./configure --prefix=/usr/local//python3 --with-openssl=/usr/local//openssl 
+   make && make install
+   # 链接
+   ln -s /usr/local/python3/bin/pip3  /usr/bin/pip
+   ln -s /usr/local/python3/bin/python3  /usr/bin/python
+   ln -s /usr/local/python3/bin/python3  /usr/bin/python3    
+   # 验证
    cd ..
-   python3.10 --version
-   # 删除解压后的文件夹
-   rm -rf Python-3.10.10
+   python
+   # 输入以下代码 无报错则完成
+   import ssl
+   import _ssl
    ```
 
 ### 3.4 安装虚拟环境
@@ -293,6 +294,7 @@
 
      ```sh
      cd /projects/serverkit/
+     chmod 777 uwsgi-tool.sh
      ./uwsgi-tool.sh start
      ```
 
