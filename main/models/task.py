@@ -169,7 +169,7 @@ class SearchHandler(Handler):
                 if spider.selectedCategory == '先图文后视频':
                     is_search1 = True
                     is_search2 = True
-                    for i in range(search_count):
+                    for i in range(search_count // 2):
                         if is_search1:
                             result1 = self.search.notes(search_key, i + 1, 20, selected_filter,
                                                         noteType.get('采集图文'))
@@ -177,6 +177,10 @@ class SearchHandler(Handler):
                                 break
                             if not result1['data'].get('has_more', True):
                                 is_search1 = False
+                        if not is_search1:
+                            if len(current_key_list) >= task_count:
+                                break
+                    for i in range(int(search_count - search_count // 2)):
                         if is_search2:
                             result2 = self.search.notes(search_key, i + 1, 20, selected_filter,
                                                         noteType.get('采集视频'))
@@ -184,7 +188,7 @@ class SearchHandler(Handler):
                                 break
                             if not result2['data'].get('has_more', True):
                                 is_search2 = False
-                        if not (is_search1 and is_search2):
+                        if not is_search2:
                             if len(current_key_list) >= task_count:
                                 break
                         time.sleep(0.1)
@@ -296,31 +300,37 @@ class RetryHandler(Handler):
                             if comment['content'] == fixed_monitors[spider.sid].task_comment and \
                                     comment['user_info']['user_id'] == spider.userId:
                                 if comment['status'] != 0:
-                                    fixed_monitors[spider.sid].failure_comment += 1
-                                    fixed_monitors[spider.sid].success_comment -= 1
-                                    DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '评论状态',
-                                                                f'该评论已经被屏蔽，地址是 {noteBaseUrl}{comment["note_id"]}']
-                                    if spider.isRetryAfterFailure:
-                                        time.sleep(1)
-                                        spider.state = 6
-                                        fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
-                                        for i in range(spider.retryTimes):
-                                            self.timer(spider)
-                                            response = self.comment.post(comment["note_id"],
-                                                                         fixed_monitors[spider.sid].task_comment)
-                                            if response['code'] == 0:
-                                                DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
-                                                                            '重评状态',
-                                                                            f'第 {i + 1} 次评论成功']
-                                                fixed_monitors[spider.sid].failure_comment -= 1
-                                                fixed_monitors[spider.sid].success_comment += 1
-                                                break
-                                            else:
-                                                DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
-                                                                            '重评状态',
-                                                                            f'第 {i + 1} 次评论失败']
-                                        self.pause(spider)
+                                    self.retry_comment(comment, spider)
+                            else:
+                                self.retry_comment(comment, spider)
+
                     break
+
+    def retry_comment(self, comment, spider):
+        fixed_monitors[spider.sid].failure_comment += 1
+        fixed_monitors[spider.sid].success_comment -= 1
+        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '评论状态',
+                                    f'该评论已经被屏蔽，地址是 {noteBaseUrl}{comment["note_id"]}']
+        if spider.isRetryAfterFailure:
+            time.sleep(1)
+            spider.state = 6
+            fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
+            for i in range(spider.retryTimes):
+                self.timer(spider)
+                response = self.comment.post(comment["note_id"],
+                                             fixed_monitors[spider.sid].task_comment)
+                if response['code'] == 0:
+                    DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
+                                                '重评状态',
+                                                f'第 {i + 1} 次评论成功']
+                    fixed_monitors[spider.sid].failure_comment -= 1
+                    fixed_monitors[spider.sid].success_comment += 1
+                    break
+                else:
+                    DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
+                                                '重评状态',
+                                                f'第 {i + 1} 次评论失败']
+            self.pause(spider)
 
 
 class CollectHandler(Handler):
