@@ -91,8 +91,7 @@ class Handler:
                 print(f'{func.__name__}: {e}')
                 spider.state = -1
                 fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
-                DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '责任链状态',
-                                            '责任链发生异常']
+                DynamicMonitor().message = [Handler.now(), '责任链状态', '责任链发生异常']
             finally:
                 if not mysql.select('spiders', ['sid'], condition=f'sid={spider.sid!r}'):
                     self.next = None
@@ -133,11 +132,15 @@ class Handler:
         while not spider.run:
             # 如果是第一次，则记录暂停时间
             if i == 0:
-                fixed_monitors[spider.sid].pause_time = convert_timestamp(time.time() * 1000)
+                fixed_monitors[spider.sid].pause_time = Handler.now()
                 spider.state = -2
                 fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
             time.sleep(1)
             i += 1
+
+    @staticmethod
+    def now():
+        return convert_timestamp(time.time() * 1000)
 
 
 class SearchHandler(Handler):
@@ -156,67 +159,61 @@ class SearchHandler(Handler):
             spider.state = 1
             fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
             self.pause(spider)
-            # is_multi_key = spider.isMultiKey
             task_count = spider.taskCount
-            search_count = task_count // 20 + 1
+            search_count = task_count // 20 + (1 if task_count % 20 else 0)
             search_keys = spider.searchKey.split("|")
             selected_filter = sortType.get(spider.selectedFilter)
             fixed_monitors[spider.sid].task_count = len(search_keys) * task_count
             fixed_monitors[spider.sid].fetch_progress = 0
             fixed_monitors[spider.sid].task_progress = 0
             for search_key in search_keys:
-                current_key_list = []
-                if spider.selectedCategory == '先图文后视频':
-                    is_search1 = True
-                    is_search2 = True
-                    for i in range(search_count // 2):
-                        if is_search1:
-                            result1 = self.search.notes(search_key, i + 1, 20, selected_filter,
-                                                        noteType.get('采集图文'))
-                            if not self.getSearchNotes(result1, current_key_list, spider, limit=10):
+                DynamicMonitor().message = [Handler.now(), '搜索状态', f'正在搜索关键字 {search_key}']
+                i = 0
+                half_upper_limit = search_count // 2 + search_count % 2
+                self.pause(spider)
+                while i < search_count:
+                    # 判断是否先图文后视频
+                    if spider.selectedCategory == '先图文后视频':
+                        note_type = noteType.get('采集图文') if i < half_upper_limit else noteType.get('采集视频')
+                        page = i % half_upper_limit + 1
+                    else:
+                        note_type = noteType.get(spider.selectedCategory, 0)
+                        page = i + 1
+                    result = self.search.notes(search_key, page, 20, selected_filter, note_type)
+                    if result['code'] == 0:
+                        if spider.selectedCategory == '先图文后视频':
+                            if not result['data'].get('has_more', False):
+                                i += 1
+                                continue
+                            items = result['data']['items']
+                            if i + 1 == half_upper_limit:
+                                items = items[:task_count // 2 % 20]
+                            elif i + 1 == search_count:
+                                items = items[:(task_count - task_count // 2) % 20]
+                            for item in items:
+                                tasks.setdefault(item['id'], False)
+                            # 如果数量在20范围内，也就是只有一轮循环，需要处理好相应的一半图文与后另一半视频
+                            if 0 < task_count <= 20 and len(tasks) < task_count:
+                                result = self.search.notes(search_key, page, 20, selected_filter,
+                                                           noteType.get('采集视频'))
+                                items = result['data']['items'][:(task_count - task_count // 2) % 20]
+                                for item in items:
+                                    tasks.setdefault(item['id'], False)
+                        else:  # 单选状态，仅图文 或者 仅视频
+                            if not result['data'].get('has_more', False):
                                 break
-                            if not result1['data'].get('has_more', True):
-                                is_search1 = False
-                        if not is_search1:
-                            if len(current_key_list) >= task_count:
-                                break
-                    for i in range(int(search_count - search_count // 2)):
-                        if is_search2:
-                            result2 = self.search.notes(search_key, i + 1, 20, selected_filter,
-                                                        noteType.get('采集视频'))
-                            if not self.getSearchNotes(result2, current_key_list, spider, limit=10):
-                                break
-                            if not result2['data'].get('has_more', True):
-                                is_search2 = False
-                        if not is_search2:
-                            if len(current_key_list) >= task_count:
-                                break
-                        time.sleep(0.1)
-                else:
-                    selected_category = noteType.get(spider.selectedCategory)
-                    for i in range(search_count):
-                        result = self.search.notes(search_key, i + 1, 20, selected_filter, selected_category)
-                        if not self.getSearchNotes(result, current_key_list, spider):
-                            break
-                        if not result['data'].get('has_more', True):
-                            break
-                        time.sleep(0.1)
-
-                for i in range(min(len(current_key_list), task_count)):
-                    tasks.setdefault(current_key_list[i]['id'], False)
-                    fixed_monitors[spider.sid].fetch_progress += 1
-
-    def getSearchNotes(self, result, temp_list, spider, limit=20):
-        if result['code'] == 0:
-            temp_list.extend(result['data']['items'][:limit])
-            return True
-        else:
-            DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '登录状态',
-                                        '未登录，请重新登录']
-            spider.state = -1
-            fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
-            self.next = None
-            return False
+                            items = result['data']['items'][:(task_count % 20 or 20) if i + 1 == search_count else 20]
+                            for item in items:
+                                tasks.setdefault(item['id'], False)
+                        fixed_monitors[spider.sid].fetch_progress = len(tasks)
+                    else:  # 异常状态
+                        spider.state = -1
+                        fixed_monitors[spider.sid].state = SpiderStatus[spider.state]
+                        DynamicMonitor().message = [Handler.now(), '登录状态', '未登录，请重新登录']
+                        self.next = None
+                        break
+                    i += 1
+                    time.sleep(0.314)
 
 
 class UncollectHandler(Handler):
@@ -228,10 +225,9 @@ class UncollectHandler(Handler):
         if spider.isComment:
             self.note = Note(fixed_monitors[spider.sid].cookies)
             if spider.commentMode == '再评论再收藏':
-                for note_id, state in tasks.items():
-                    if not state:
-                        self.note.uncollect(note_id)
-                        break
+                note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+                if note_id:
+                    self.note.uncollect(note_id)
 
 
 class SkipCollectHandler(Handler):
@@ -244,12 +240,11 @@ class SkipCollectHandler(Handler):
             self.note = Note(fixed_monitors[spider.sid].cookies)
             comment_mode = spider.commentMode
             if comment_mode == '跳过已收藏':
-                for note_id, state in tasks.items():
-                    if not state:
-                        interact_info = self.note.feed(note_id)['data']['items'][0]['note_card']['interact_info']
-                        if interact_info['collected']:
-                            self.next = self.next.next
-                        break
+                note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+                if note_id:
+                    interact_info = self.note.feed(note_id)['data']['items'][0]['note_card']['interact_info']
+                    if interact_info['collected']:
+                        self.next = self.next.next
 
 
 class CommentHandler(Handler):
@@ -260,28 +255,24 @@ class CommentHandler(Handler):
         self.pause(spider)
         if spider.isComment:
             self.comment = Comment(fixed_monitors[spider.sid].cookies)
-            comments = spider.comments.split('|')
-            for note_id, state in tasks.items():
-                comment = random.choice(comments)  # 随机出评
+            note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+            if note_id:
+                comment = random.choice(spider.comments.split('|'))  # 随机出评
                 comment = check_comment(comment)  # 检测敏感
                 if spider.isRandomRareWords:  # 生僻字追加
                     comment = f"{comment}{generate_rare_chars(spider.rareWordsCount)}"
                 fixed_monitors[spider.sid].task_url = f"{noteBaseUrl}{note_id}"
                 fixed_monitors[spider.sid].task_comment = comment
-                if not state:
-                    response = self.comment.post(note_id, comment)
-                    if response['code'] == -10000:
-                        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '评论状态',
-                                                    '该账户违反小红书社区规范已经被封号']
-                        self.next = None
-                        fixed_monitors[spider.sid].failure_comment += 1
-                    elif response['code'] != 0:
-                        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '评论状态',
-                                                    '未知原因导致评论失败']
-                        fixed_monitors[spider.sid].failure_comment += 1
-                    elif response['code'] == 0:
-                        fixed_monitors[spider.sid].success_comment += 1
-                    break
+                response = self.comment.post(note_id, comment)
+                if response['code'] == -10000:
+                    DynamicMonitor().message = [Handler.now(), '评论状态', '该账户违反小红书社区规范已经被封号']
+                    self.next = None
+                    fixed_monitors[spider.sid].failure_comment += 1
+                elif response['code'] != 0:
+                    DynamicMonitor().message = [Handler.now(), '评论状态', '未知原因导致评论失败']
+                    fixed_monitors[spider.sid].failure_comment += 1
+                elif response['code'] == 0:
+                    fixed_monitors[spider.sid].success_comment += 1
 
 
 class RetryHandler(Handler):
@@ -293,25 +284,24 @@ class RetryHandler(Handler):
         if spider.isComment:
             self.comment = Comment(fixed_monitors[spider.sid].cookies)
             if spider.isCheckFailure:
-                for note_id, state in tasks.items():
-                    if not state:
-                        comments = self.comment.showAll(note_id)['data']['comments']
-                        for comment in comments:
-                            if comment['content'] == fixed_monitors[spider.sid].task_comment and \
-                                    comment['user_info']['user_id'] == spider.userId:
-                                if comment['status'] != 0:
-                                    self.retry_comment(note_id, spider)
-                                    comment['status'] = 0
-                                    continue
-                                break
-                        else:
-                            self.retry_comment(note_id, spider)
-                    break
+                note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+                if note_id:
+                    comments = self.comment.showAll(note_id)['data']['comments']
+                    for comment in comments:
+                        if comment['content'] == fixed_monitors[spider.sid].task_comment and \
+                                comment['user_info']['user_id'] == spider.userId:
+                            if comment['status'] != 0:
+                                self.retry_comment(note_id, spider)
+                                comment['status'] = 0
+                                continue
+                            break
+                    else:
+                        self.retry_comment(note_id, spider)
 
     def retry_comment(self, note_id, spider):
         fixed_monitors[spider.sid].failure_comment += 1
         fixed_monitors[spider.sid].success_comment -= 1
-        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '评论状态',
+        DynamicMonitor().message = [Handler.now(), '评论状态',
                                     f'该评论已经被屏蔽，地址是 {noteBaseUrl}{note_id}']
         if spider.isRetryAfterFailure:
             time.sleep(1)
@@ -321,17 +311,13 @@ class RetryHandler(Handler):
                 self.timer(spider)
                 response = self.comment.post(note_id, fixed_monitors[spider.sid].task_comment)
                 if response['code'] == 0:
-                    DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
-                                                '重评状态',
-                                                f'第 {i + 1} 次评论成功']
+                    DynamicMonitor().message = [Handler.now(), '重评状态', f'第 {i + 1} 次评论成功']
                     fixed_monitors[spider.sid].failure_comment -= 1
                     fixed_monitors[spider.sid].success_comment += 1
                     break
                 else:
-                    DynamicMonitor().message = [convert_timestamp(time.time() * 1000),
-                                                '重评状态',
-                                                f'第 {i + 1} 次评论失败']
-            self.pause(spider)
+                    DynamicMonitor().message = [Handler.now(), '重评状态', f'第 {i + 1} 次评论失败']
+                self.pause(spider)
 
 
 class CollectHandler(Handler):
@@ -342,13 +328,11 @@ class CollectHandler(Handler):
         self.pause(spider)
         if spider.isToCollect or (spider.isComment and spider.commentMode == '再评论再收藏'):
             self.note = Note(fixed_monitors[spider.sid].cookies)
-            for note_id, state in tasks.items():
-                if not state:
-                    response = self.note.collect(note_id)
-                    if response['code'] != 0:
-                        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '收藏状态',
-                                                    '收藏失败']
-                    break
+            note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+            if note_id:
+                response = self.note.collect(note_id)
+                if response['code'] != 0:
+                    DynamicMonitor().message = [Handler.now(), '收藏状态', '收藏失败']
 
 
 class LikeHandler(Handler):
@@ -359,13 +343,11 @@ class LikeHandler(Handler):
         self.pause(spider)
         if spider.isToLike:
             self.note = Note(fixed_monitors[spider.sid].cookies)
-            for note_id, state in tasks.items():
-                if not state:
-                    response = self.note.like(note_id)
-                    if response['code'] != 0:
-                        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '点赞状态',
-                                                    '点赞失败']
-                    break
+            note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+            if note_id:
+                response = self.note.like(note_id)
+                if response['code'] != 0:
+                    DynamicMonitor().message = [Handler.now(), '点赞状态', '点赞失败']
 
 
 class FollowHandler(Handler):
@@ -377,27 +359,27 @@ class FollowHandler(Handler):
         if spider.isToFollow:
             self.note = Note(fixed_monitors[spider.sid].cookies)
             self.user = User(fixed_monitors[spider.sid].cookies)
-            for note_id, state in tasks.items():
-                if not state:
-                    user_id = self.note.feed(note_id)['data']['items'][0]['note_card']['user']['user_id']
-                    response = self.user.follow(user_id)
-                    if response['code'] != 0:
-                        DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '关注状态',
-                                                    '关注失败']
-                    break
+            note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+            if note_id:
+                user_id = self.note.feed(note_id)['data']['items'][0]['note_card']['user']['user_id']
+                response = self.user.follow(user_id)
+                if response['code'] != 0:
+                    DynamicMonitor().message = [Handler.now(), '关注状态', '关注失败']
         # 当前任务标记完成
-        for index, (note_id, state) in enumerate(tasks.items()):
-            if not state:
-                tasks[note_id] = True
-                fixed_monitors[spider.sid].task_progress += 1
-                DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '任务状态',
-                                            f'第{index + 1}任务 {noteBaseUrl}{note_id} 已完成']
-                break
-        # 非循环模式下 检测总任务是否完成
-        if not spider.isCyclicMode and sum(tasks.values()) == spider.taskCount:
+        note_id = next((note_id for note_id, state in tasks.items() if not state), None)
+        serial_num = next((i + 1 for i, state in enumerate(tasks.values()) if not state), None)
+        if note_id and serial_num:
+            tasks[note_id] = True
+            fixed_monitors[spider.sid].task_progress += 1
+            DynamicMonitor().message = [Handler.now(), '任务状态', f'第{serial_num}个任务 {noteBaseUrl}{note_id} 完成']
+        else:
             self.next = None
-            DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '任务状态', f'总任务已完成']
-        # 循环模式下 并且第一次总任务完成了情况 进入大循环前
+            DynamicMonitor().message = [Handler.now(), '任务状态', f'该任务异常，请检查后台日志']
+        # 非循环模式下 检测总任务是否完成
+        if not spider.isCyclicMode and all(tasks.values()):
+            self.next = None
+            DynamicMonitor().message = [Handler.now(), '任务状态', f'总任务已完成']
+        # 循环模式下 并且第一次总任务完成了 进入循环前
         if spider.isCyclicMode and sum(tasks.values()) >= spider.taskCount:
             time.sleep(60 * spider.waitTime)
 
@@ -406,7 +388,7 @@ def runTask(spider: Spider):
     if fixed_monitors.get(spider.sid):
         return
     # 构建责任链
-    DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '构建责任链', f'配置责任链中，请等待']
+    DynamicMonitor().message = [Handler.now(), '构建责任链', f'配置责任链中，请等待']
     search_handler = SearchHandler()
     uncollect_handler = UncollectHandler()
     skip_collect_handler = SkipCollectHandler()
@@ -424,7 +406,7 @@ def runTask(spider: Spider):
     collect_handler.setNext(like_handler)
     like_handler.setNext(follow_handler)
     follow_handler.setNext(search_handler)
-    DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '构建责任链', f'配置责任链关系已完成']
+    DynamicMonitor().message = [Handler.now(), '构建责任链', f'配置责任链关系已完成']
     # Cookies更换
     user_cookie = Cookie(cookies)
     user_cookie.set_cookie("web_session", spider.session)
@@ -435,11 +417,10 @@ def runTask(spider: Spider):
     fixed_monitor.task_count = spider.taskCount
     fixed_monitor.cookies = user_cookie.get_cookie_string()
     fixed_monitors[spider.sid] = fixed_monitor
-    DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '监控启动', f'{spider.sid}已载入监控屏模型']
+    DynamicMonitor().message = [Handler.now(), '监控启动', f'{spider.sid[:6]}...已载入监控屏模型']
     tasks = {}
     # 线程启动，开始执行任务
     thread = Thread(target=search_handler.handle, kwargs={'spider': spider, 'tasks': tasks}, daemon=True)
     threads.append(thread)
     thread.start()
-    DynamicMonitor().message = [convert_timestamp(time.time() * 1000), '线程启动',
-                                f'{spider.sid}已附加线程并且已经启动']
+    DynamicMonitor().message = [Handler.now(), '线程启动', f'{spider.sid[:6]}...已附加线程并且已经启动']
