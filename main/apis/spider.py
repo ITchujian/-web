@@ -9,33 +9,11 @@ import functools
 from ..models.task import runTask, spiderModels
 from ..models.spider import Spider
 from ..utils.dbtool import mysql
+from ..config.settings import Config
 from xhsAPI import Login
 from flask import Blueprint, request, jsonify
 
 spider_bp = Blueprint('spider', __name__)
-cookies = "abRequestId=b3a24d97-e349-553f-866c-7fba9239ccaa; a1=18b287fe0af9atg98uvl7aoprycn0jsa7sc9ov2z750000374905; webId=037a83ee1baebf147894c93a32bf9802; gid=yYDJYWifdKWdyYDJYWid8MhJ0ij09kjY7h1WSuW0lUFvSj28I8VM0l888qW4j8280q00WSKf; webBuild=3.12.0; xsecappid=xhs-pc-web; websectiga=9730ffafd96f2d09dc024760e253af6ab1feb0002827740b95a255ddf6847fc8; sec_poison_id=517a5527-5edc-45f1-bb2d-69585c4a63a4; web_session=040069b4593d2bf8c047e6fa06374b761c5547; unread={%22ub%22:%22650a6a2f000000001f03a3d4%22%2C%22ue%22:%2265325bae00000000200032e2%22%2C%22uc%22:28}"
-
-spiders_fields = ['sid', 'state', 'createTime', 'isMultiKey', 'searchKey', 'selectedFilter',
-                  'selectedCategory', 'taskCount', 'isCyclicMode', 'waitTime', 'isToLike',
-                  'isToCollect', 'isToFollow', 'isComment', 'commentMode', 'isRandomRareWords',
-                  'rareWordsCount', 'isCheckFailure', 'isRetryAfterFailure', 'retryTimes', 'isRandomIntervalTime',
-                  'intervalTime', 'run', 'showQrCode', 'showQrCodeState', 'qrCodeState', 'secureSession', 'session',
-                  'userId',
-                  'comments']
-
-config_fields = ('id', 'isMultiKey', 'searchKey', 'selectedFilter',
-                 'selectedCategory', 'taskCount', 'isCyclicMode', 'waitTime', 'isToLike',
-                 'isToCollect', 'isToFollow', 'isComment', 'commentMode', 'isRandomRareWords',
-                 'rareWordsCount', 'isCheckFailure', 'isRetryAfterFailure', 'retryTimes', 'isRandomIntervalTime',
-                 'intervalTime', 'comments')
-
-config_limit = {
-    'taskCount': (1, 1000),
-    'waitTime': (1, 10080),
-    'rareWordsCount': (0, 50),
-    'retryTimes': (0, 5),
-    'intervalTime': (1, 300),
-}
 
 
 def handle_exceptions(func):
@@ -58,7 +36,7 @@ def handle_exceptions(func):
 @spider_bp.route('/qrcode', methods=['GET'])
 @handle_exceptions
 def qrcode():
-    login = Login(cookies)
+    login = Login(Config.DEFAULT_COOKIES)
     qrcode_data = login.createQrcode()['data']
 
     return jsonify({
@@ -73,7 +51,7 @@ def qrcode():
 def qrcodeState():
     qr_id = request.args.get('qrId')
     code = request.args.get('code')
-    login = Login(cookies)
+    login = Login(Config.DEFAULT_COOKIES)
     data = login.qrcodeStatus(qr_id, code)['data']
     if not data or data.get('code_status', -1) == 0 or data.get('code_status', -1) == 1:
         return jsonify({
@@ -105,12 +83,12 @@ def qrcodeState():
 @handle_exceptions
 def create():
     data = request.form.to_dict()
-    new_s = Spider(**data)
-    mysql.insert('spiders', new_s.__dict__)
+    new_spider = Spider(**data)
+    mysql.insert('spiders', new_spider.__dict__)
     return jsonify({
         'success': True,
         'msg': '机器爬虫创建成功',
-        'data': new_s.to_dict(),
+        'data': new_spider.to_dict(),
     })
 
 
@@ -119,7 +97,7 @@ def create():
 def load():
     spiders = []
     for db_spider in mysql.select('spiders'):
-        spiders.append(dict(zip(spiders_fields, db_spider)))
+        spiders.append(dict(zip(Config.SPIDER_FIELDS, db_spider)))
     return jsonify({
         'success': True,
         'msg': '机器爬虫列表获取成功',
@@ -130,28 +108,28 @@ def load():
 @spider_bp.route('/delete', methods=["GET"])
 @handle_exceptions
 def delete():
-    sid = request.args.get('sid')
-    mysql.delete('spiders', f'sid={sid!r}')
+    userId = request.args.get('userId')
+    mysql.delete('spiders', f'userId={userId!r}')
     return load()
 
 
 @spider_bp.route('/set_state', methods=['POST'])
 @handle_exceptions
 def set_state():
-    sid = request.form.get('sid')
+    userId = request.form.get('userId')
     run = request.form.get('run')
-    data = dict(zip(spiders_fields, mysql.select('spiders', condition=f'sid={sid!r}')[0]))
-    spider = spiderModels.get(sid) if spiderModels.get(sid) else Spider(**data)
+    data = dict(zip(Config.SPIDER_FIELDS, mysql.select('spiders', condition=f'userId={userId!r}')[0]))
+    spider = spiderModels.get(userId) if spiderModels.get(userId) else Spider(**data)
     if run == 'false':
-        mysql.update('spiders', {'run': 0}, f'sid={sid!r}')
+        mysql.update('spiders', {'run': 0}, f'userId={userId!r}')
         run = False
         spider.run = 0
     elif run == 'true':
-        mysql.update('spiders', {'run': 1}, f'sid={sid!r}')
+        mysql.update('spiders', {'run': 1}, f'userId={userId!r}')
         run = True
         spider.run = 1
-        if not spiderModels.get(spider.sid):
-            spiderModels[spider.sid] = spider
+        if not spiderModels.get(spider.userId):
+            spiderModels[spider.userId] = spider
             runTask(spider)
     if run:
         return jsonify({
@@ -185,7 +163,7 @@ def getConfigure():
         return jsonify({
             'success': True,
             'msg': '获取配置成功',
-            'data': dict(zip(config_fields, config_record[0])),
+            'data': dict(zip(Config.CONFIG_FIELDS, config_record[0])),
         })
     else:
         return jsonify({
@@ -199,7 +177,7 @@ def getConfigure():
 def saveConfigure():
     data = request.form.to_dict()
     for key, value in data.items():
-        if region := config_limit.get(key):
+        if region := Config.CONFIG_LIMIT.get(key):
             if float(value) > region[1]:
                 data[key] = str(region[1])
             elif float(value) < region[0]:

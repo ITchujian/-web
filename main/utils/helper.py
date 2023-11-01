@@ -6,7 +6,7 @@
 """
 import re
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 banned_words = ('王', '江', '周', '胡', '刘', '李', '吴', '毛', '温', '习', '贺', '贾', '彭', '潭', '轭', '馿',
                 '马驰.*新加坡|新加坡.*马驰', '自由光诚', '陈光诚事件', '光诚.*沂南|沂南.*光诚',
@@ -79,6 +79,12 @@ def convert_timestamp(timestamp, type_: str = "%Y-%m-%d %H:%M:%S"):
     # 格式化为指定的日期时间字符串
     formatted_datetime = dt_object.strftime(type_)
     return formatted_datetime
+
+
+def cal_minute_time(minutes):
+    now = datetime.now()  # 获取当前时间
+    future_time = now + timedelta(minutes=minutes)  # 计算未来时间
+    return future_time.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def replace_with_asterisks(match):

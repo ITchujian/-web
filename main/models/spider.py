@@ -35,7 +35,6 @@ class Spider:
         self.isCyclicMode = True
         self.intervalTime = 3
         self.isRandomIntervalTime = None
-        self.sid = str(uuid.uuid4())
         self.state = 0
         self.createTime = int(time.time() * 1000)
         for key, value in kwargs.items():
@@ -45,7 +44,7 @@ class Spider:
 
     def to_dict(self):
         return {
-            'sid': str(self.sid),
+            'userId': self.userId,
             'state': self.state,
             'createTime': self.createTime
         }

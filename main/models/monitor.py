@@ -10,7 +10,7 @@ fixed_monitors = {}
 
 class FixedMonitor:
     def __init__(self):
-        self.sid = ""
+        self.userId = ""
         self.state = ""
         self.create_time = ""
         self.pause_time = ""
