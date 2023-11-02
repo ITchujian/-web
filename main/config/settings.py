@@ -7,6 +7,8 @@
 import pymysql
 from enum import Enum
 
+SECRET_KEY = 'd0fb963ff976f9c37fc81fe03c21ea7b'
+
 
 class SpiderState(Enum):
     生成中 = 0

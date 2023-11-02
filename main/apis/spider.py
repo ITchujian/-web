@@ -4,51 +4,32 @@
 @Created: 2023/10/25 20:41
 @Description: Created in backend.
 """
-import functools
-
+from .base import *
 from ..models.task import runTask, spiderModels
 from ..models.spider import Spider
-from ..utils.dbtool import mysql
-from ..config.settings import Config
 from xhsAPI import Login
-from flask import Blueprint, request, jsonify
 
 spider_bp = Blueprint('spider', __name__)
 
 
-def handle_exceptions(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            result = func(*args, **kwargs)
-            return result
-        except Exception as e:
-            print(e)
-            return jsonify({
-                'success': False,
-                'message': 'An error occurred.',
-                'data': []
-            }), 500
-
-    return wrapper
-
-
 @spider_bp.route('/qrcode', methods=['GET'])
 @handle_exceptions
-def qrcode():
+@auth
+def qrcode(user):
     login = Login(Config.DEFAULT_COOKIES)
     qrcode_data = login.createQrcode()['data']
 
     return jsonify({
         'success': True,
-        'msg': '获取二维码成功',
+        'msg': '获取成功',
         'data': qrcode_data,
     })
 
 
 @spider_bp.route('/qrcode/state', methods=['GET'])
 @handle_exceptions
-def qrcodeState():
+@auth
+def qrcodeState(user):
     qr_id = request.args.get('qrId')
     code = request.args.get('code')
     login = Login(Config.DEFAULT_COOKIES)
@@ -67,87 +48,109 @@ def qrcodeState():
         })
     elif data.get('code_status', -1) == 3:
         return jsonify({
-            'success': True,
+            'success': False,
             'msg': '二维码已过期',
             'data': {},
         })
     else:
         return jsonify({
-            'success': True,
-            'msg': '未知错误呀',
-            'data': {},
+            'success': False,
+            'msg': '未知错误',
+            'data': data.get('code_status', -1),
         })
 
 
 @spider_bp.route('/create', methods=['POST'])
 @handle_exceptions
-def create():
+@auth
+def create(user):
     data = request.form.to_dict()
     new_spider = Spider(**data)
     mysql.insert('spiders', new_spider.__dict__)
+    relation = {
+        "uid": user["uid"],
+        "userId": new_spider.__dict__.get('userId')
+    }
+    mysql.insert('users_spiders', relation)
     return jsonify({
         'success': True,
-        'msg': '机器爬虫创建成功',
+        'msg': '创建成功',
         'data': new_spider.to_dict(),
     })
 
 
 @spider_bp.route('/load', methods=['GET'])
 @handle_exceptions
-def load():
+@auth
+def load(user):
     spiders = []
-    for db_spider in mysql.select('spiders'):
-        spiders.append(dict(zip(Config.SPIDER_FIELDS, db_spider)))
+    userIds = mysql.select('users_spiders', fields=['userId'], condition=f'uid={user["uid"]!r}')
+    if userIds:
+        userIds = map(lambda x: x[0], userIds)
+        for userId in userIds:
+            db_spider = mysql.select('spiders', condition=f'userId={userId!r}')
+            if db_spider:
+                spiders.append(dict(zip(Config.SPIDER_FIELDS, db_spider[0])))
     return jsonify({
         'success': True,
-        'msg': '机器爬虫列表获取成功',
+        'msg': '获取成功',
         'data': spiders,
     })
 
 
 @spider_bp.route('/delete', methods=["GET"])
 @handle_exceptions
-def delete():
+@auth
+def delete(user):
     userId = request.args.get('userId')
-    mysql.delete('spiders', f'userId={userId!r}')
+    userIds = mysql.select('users_spiders', fields=['userId'], condition=f'uid={user["uid"]!r}')
+    if userIds:
+        userIds = map(lambda x: x[0], userIds)
+    if userId in userIds:
+        mysql.delete('spiders', f'userId={userId!r}')
     return load()
 
 
 @spider_bp.route('/set_state', methods=['POST'])
 @handle_exceptions
-def set_state():
+@auth
+def set_state(user):
     userId = request.form.get('userId')
     run = request.form.get('run')
-    data = dict(zip(Config.SPIDER_FIELDS, mysql.select('spiders', condition=f'userId={userId!r}')[0]))
-    spider = spiderModels.get(userId) if spiderModels.get(userId) else Spider(**data)
-    if run == 'false':
-        mysql.update('spiders', {'run': 0}, f'userId={userId!r}')
-        run = False
-        spider.run = 0
-    elif run == 'true':
-        mysql.update('spiders', {'run': 1}, f'userId={userId!r}')
-        run = True
-        spider.run = 1
-        if not spiderModels.get(spider.userId):
-            spiderModels[spider.userId] = spider
-            runTask(spider)
-    if run:
-        return jsonify({
-            'success': True,
-            'msg': '已激活',
-            'data': {}
-        })
+    userIds = mysql.select('users_spiders', fields=['userId'], condition=f'uid={user["uid"]!r}')
+    if userIds:
+        userIds = map(lambda x: x[0], userIds)
+    if userId in userIds:
+        data = dict(zip(Config.SPIDER_FIELDS, mysql.select('spiders', condition=f'userId={userId!r}')[0]))
+        spider = spiderModels.get(userId) if spiderModels.get(userId) else Spider(**data)
+        if run == 'false':
+            mysql.update('spiders', {'run': 0}, f'userId={userId!r}')
+            spider.run = 0
+            return jsonify({
+                'success': True,
+                'msg': '已暂停',
+            })
+        elif run == 'true':
+            mysql.update('spiders', {'run': 1}, f'userId={userId!r}')
+            spider.run = 1
+            if not spiderModels.get(spider.userId):
+                spiderModels[spider.userId] = spider
+                runTask(spider)
+            return jsonify({
+                'success': True,
+                'msg': '已激活',
+            })
     else:
         return jsonify({
-            'success': True,
-            'msg': '已暂停',
-            'data': {}
+            'success': False,
+            'msg': 'No permission'
         })
 
 
 @spider_bp.route('/sensitive_words', methods=['GET'])
 @handle_exceptions
-def getSensitiveWords():
+@auth
+def getSensitiveWords(user):
     return jsonify({
         'success': True,
         'msg': '获取敏感词成功',
@@ -157,24 +160,30 @@ def getSensitiveWords():
 
 @spider_bp.route('/configure/get', methods=['GET'])
 @handle_exceptions
-def getConfigure():
-    config_record = mysql.select('config', condition='id=1')
+@auth
+def getConfigure(user):
+    config_id = mysql.select('users_config', fields=['id'], condition=f'uid={user["uid"]!r}')
+    if config_id and config_id[0]:
+        config_id = config_id[0][0]
+    config_record = mysql.select('config', condition=f'id={config_id!r}')
     if config_record:
         return jsonify({
             'success': True,
-            'msg': '获取配置成功',
+            'msg': '获取成功',
             'data': dict(zip(Config.CONFIG_FIELDS, config_record[0])),
         })
     else:
         return jsonify({
             'success': False,
-            'msg': '获取配置失败',
-            'data': {},
+            'msg': '获取失败',
+            'data': None,
         })
 
 
 @spider_bp.route('/configure/set', methods=['POST'])
-def saveConfigure():
+@handle_exceptions
+@auth
+def saveConfigure(user):
     data = request.form.to_dict()
     for key, value in data.items():
         if region := Config.CONFIG_LIMIT.get(key):
@@ -182,12 +191,21 @@ def saveConfigure():
                 data[key] = str(region[1])
             elif float(value) < region[0]:
                 data[key] = str(region[0])
-    if config_record := mysql.select('config', condition='id=1'):
-        mysql.update('config', condition='id=1', data=data)
-    else:
-        mysql.insert('config', data=data)
+    config_id = mysql.select('users_config', fields=['id'], condition=f'uid={user["uid"]!r}')
+    if config_id and config_id[0]:
+        config_id = config_id[0][0]
+        config_record = mysql.select('config', condition=f'id={config_id!r}')
+        if config_record:
+            mysql.update('config', condition=f'id={config_id!r}', data=data)
+            return jsonify({
+                'success': True,
+                'msg': '保存成功',
+            })
+        else:
+            data['id'] = config_id
+            mysql.insert('config', data=data)
     return jsonify({
-        'success': True,
-        'msg': '保存配置成功',
-        'data': config_record,
+        'success': False,
+        'msg': '保存失败',
     })
+

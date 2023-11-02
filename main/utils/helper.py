@@ -4,6 +4,7 @@
 @Created: 2023/10/25 13:57
 @Description: Created in backend.
 """
+import hashlib
 import re
 import random
 from datetime import datetime, timedelta
