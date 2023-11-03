@@ -91,7 +91,7 @@ class Config(object):
 
     USER_FIELDS = ('uid', 'uname', 'max_limit')
     LOGIN_FAILURE_LIMIT = 3
-    LOCK_TIME = 1
+    LOCK_TIME = 5
 
     @classmethod
     def DBPOOL_PARAMS(cls):
