@@ -7,7 +7,7 @@
 import time
 import uuid
 
-ExcludeKeys = {'qrCodeUrl', 'commentsFile', 'multiKeysFile'}
+ExcludeKeys = {'qrCodeUrl', 'commentsFile', 'multiKeysFile', 'isPermission', 'generateRobotTitle'}
 
 
 class Spider:

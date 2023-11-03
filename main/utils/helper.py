@@ -82,6 +82,20 @@ def convert_timestamp(timestamp, type_: str = "%Y-%m-%d %H:%M:%S"):
     return formatted_datetime
 
 
+def get_current_time(type_: str = 'datetime'):
+    now = datetime.now()
+    if type_ == 'str':
+        return now.strftime('%Y-%m-%d %H:%M:%S')
+    elif type_ == 'datetime':
+        return now
+    else:
+        return None
+
+
+def convert_datetime(date_time: datetime):
+    return date_time.strftime('%Y-%m-%d %H:%M:%S')
+
+
 def cal_minute_time(minutes):
     now = datetime.now()  # 获取当前时间
     future_time = now + timedelta(minutes=minutes)  # 计算未来时间
@@ -111,3 +125,4 @@ if __name__ == '__main__':
     test_comment = "邓小平大大太帅了, 新加坡中间乱写的马驰"
     print(check_comment(test_comment))
     print(generate_rare_chars(3))
+    print(get_current_time())

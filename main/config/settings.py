@@ -89,6 +89,10 @@ class Config(object):
         'intervalTime': (1, 300),
     }
 
+    USER_FIELDS = ('uid', 'uname', 'max_limit')
+    LOGIN_FAILURE_LIMIT = 3
+    LOCK_TIME = 1
+
     @classmethod
     def DBPOOL_PARAMS(cls):
         return dict(

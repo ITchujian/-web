@@ -6,13 +6,14 @@
 """
 import hashlib
 import time
+import uuid
 
 import jwt
 
 
 class Password:
     @staticmethod
-    def encrypt_password(password: str) -> str:
+    def encrypt(password: str) -> str:
         md5_hash = hashlib.md5()
         md5_hash.update(password.encode('utf-8'))
         encrypted_password = md5_hash.hexdigest()
@@ -21,8 +22,9 @@ class Password:
 
 class Token:
     @staticmethod
-    def generate(uid: int, uname: str, upwd: str, secret_key: str) -> str:
+    def create(uid: int, uname: str, upwd: str, secret_key: str) -> str:
         payload = {
+            'tokenId': str(uuid.uuid4()),
             'uid': uid,
             'uname': uname,
             'upwd': upwd,
@@ -44,6 +46,7 @@ class Token:
             return payload
         except Exception as e:
             return {
+                'tokenId': str(uuid.uuid4()),
                 'uid': None,
                 'uname': None,
                 'upwd': None,

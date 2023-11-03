@@ -60,23 +60,43 @@ def qrcodeState(user):
         })
 
 
+@spider_bp.route('/verify', methods=['GET'])
+@handle_exceptions
+@auth
+def verify(user):
+    if verify_limit(user):
+        return jsonify({
+            'success': True,
+            'msg': '限制通过',
+        }), 201
+    return jsonify({
+        'success': False,
+        'msg': '限制拒绝',
+    }), 403
+
+
 @spider_bp.route('/create', methods=['POST'])
 @handle_exceptions
 @auth
 def create(user):
-    data = request.form.to_dict()
-    new_spider = Spider(**data)
-    mysql.insert('spiders', new_spider.__dict__)
-    relation = {
-        "uid": user["uid"],
-        "userId": new_spider.__dict__.get('userId')
-    }
-    mysql.insert('users_spiders', relation)
+    if verify_limit(user):
+        data = request.form.to_dict()
+        new_spider = Spider(**data)
+        mysql.insert('spiders', new_spider.__dict__)
+        relation = {
+            "uid": user["uid"],
+            "userId": new_spider.__dict__.get('userId')
+        }
+        mysql.insert('users_spiders', relation)
+        return jsonify({
+            'success': True,
+            'msg': '创建成功',
+            'data': new_spider.to_dict(),
+        }), 201
     return jsonify({
-        'success': True,
-        'msg': '创建成功',
-        'data': new_spider.to_dict(),
-    })
+        'success': False,
+        'msg': '创建失败',
+    }), 403
 
 
 @spider_bp.route('/load', methods=['GET'])
@@ -208,4 +228,3 @@ def saveConfigure(user):
         'success': False,
         'msg': '保存失败',
     })
-
