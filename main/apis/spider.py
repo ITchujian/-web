@@ -82,6 +82,8 @@ def create(user):
     if verify_limit(user):
         data = request.form.to_dict()
         new_spider = Spider(**data)
+        db_new = new_spider.__dict__
+        db_new.pop('tokenId')
         mysql.insert('spiders', new_spider.__dict__)
         relation = {
             "uid": user["uid"],
