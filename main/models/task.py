@@ -9,7 +9,7 @@ import random
 import time
 from threading import Thread, Event
 from xhsAPI import Search, User, Note, Comment, Login
-from .monitor import fixed_monitors, FixedMonitor, DynamicMonitor
+from .monitor import fixed_monitors, FixedMonitor, dynamic_monitors
 from ..utils.helper import convert_timestamp, check_comment, generate_rare_chars, cal_minute_time
 from ..utils.dbtool import mysql
 from ..models.spider import Spider
@@ -70,7 +70,7 @@ class Handler:
                 print(f'{func.__name__}: {e}')
                 spider.state = -1
                 fixed_monitors[spider.userId].state = SpiderState(spider.state).name
-                DynamicMonitor().message = [Handler.now(), '责任链状态', '责任链发生异常']
+                dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '责任链状态', '责任链发生异常']
             finally:
                 if not mysql.select('spiders', ['userId'], condition=f'userId={spider.userId!r}'):
                     self.next = None
@@ -144,7 +144,8 @@ class SearchHandler(Handler):
             fixed_monitors[spider.userId].fetch_progress = 0
             fixed_monitors[spider.userId].task_progress = 0
             for search_key in search_keys:
-                DynamicMonitor().message = [Handler.now(), '搜索状态', f'正在搜索关键字 {search_key}']
+                dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '搜索状态',
+                                                                f'正在搜索关键字 {search_key}']
                 i = 0
                 half_upper_limit = search_count // 2 + search_count % 2
                 self.pause(spider)
@@ -159,9 +160,10 @@ class SearchHandler(Handler):
                     result = self.search.notes(search_key, page, 20, sort_type, note_type)
                     if result['code'] == 0:
                         if not result['data']:  # 高频搜索导致验证码情况处理
-                            DynamicMonitor().message = [Handler.now(), '搜索状态', '搜索为空，疑似验证码出现']
-                            DynamicMonitor().message = [Handler.now(), '登录状态',
-                                                        '请启动补登工具，输入用户ID并登录，然后重新激活本爬虫']
+                            dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '搜索状态',
+                                                                            '搜索为空，疑似验证码出现']
+                            dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '登录状态',
+                                                                            '请启动补登工具，输入用户ID并登录，然后重新激活本爬虫']
                             spider.state = -3
                             fixed_monitors[spider.userId].state = SpiderState(spider.state).name
                             mysql.update('spiders', {'run': 0}, f'userId={spider.userId!r}')
@@ -201,7 +203,7 @@ class SearchHandler(Handler):
                     else:  # 异常状态
                         spider.state = -1
                         fixed_monitors[spider.userId].state = SpiderState(spider.state).name
-                        DynamicMonitor().message = [Handler.now(), '登录状态', '未登录，请重新登录']
+                        dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '登录状态', '未登录，请重新登录']
                         self.next = None
                         break
                     i += 1
@@ -237,9 +239,12 @@ class SkipCollectHandler(Handler):
             if comment_mode == '跳过已收藏':
                 note_id = next((note_id for note_id, state in tasks.items() if not state), None)
                 if note_id:
-                    interact_info = self.note.feed(note_id)['data']['items'][0]['note_card']['interact_info']
-                    if interact_info['collected']:
-                        self.next = self.next.next
+                    try:
+                        interact_info = self.note.feed(note_id)['data']['items'][0]['note_card']['interact_info']
+                        if interact_info['collected']:
+                            self.next = self.next.next
+                    except KeyError:
+                        pass
 
 
 class CommentHandler(Handler):
@@ -253,7 +258,7 @@ class CommentHandler(Handler):
             item = next(((i + 1, note_id) for i, (note_id, state) in enumerate(tasks.items()) if not state), None)
             if item:
                 serial_num, note_id = item
-                DynamicMonitor().message = [Handler.now(), '评论状态', f'正在评论第{serial_num}条']
+                dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '评论状态', f'正在评论第{serial_num}条']
                 comment = random.choice(spider.comments.split('|'))  # 随机出评
                 comment = check_comment(comment)  # 检测敏感
                 if spider.isRandomRareWords:  # 生僻字追加
@@ -264,13 +269,16 @@ class CommentHandler(Handler):
                 if response['code'] == -10000:
                     self.next = None
                     fixed_monitors[spider.userId].failure_comment += 1
-                    DynamicMonitor().message = [Handler.now(), '评论状态', Config.COMMENT_FAILURE_REASON_BANNED]
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '评论状态',
+                                                                    Config.COMMENT_FAILURE_REASON_BANNED]
                 elif response['code'] != 0:
                     fixed_monitors[spider.userId].failure_comment += 1
-                    DynamicMonitor().message = [Handler.now(), '评论状态', Config.COMMENT_FAILURE_REASON_UNKNOWN]
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '评论状态',
+                                                                    Config.COMMENT_FAILURE_REASON_UNKNOWN]
                 elif response['code'] == 0:
                     fixed_monitors[spider.userId].success_comment += 1
-                    DynamicMonitor().message = [Handler.now(), '评论状态', f'第{serial_num}条评论完成']
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '评论状态',
+                                                                    f'第{serial_num}条评论完成']
 
 
 class RetryHandler(Handler):
@@ -290,15 +298,15 @@ class RetryHandler(Handler):
                                 comment['user_info']['user_id'] == spider.userId:
                             if comment['status'] != 0:
                                 self.retry_comment(note_id, spider)
-                                break
+                            break
                     else:
                         self.retry_comment(note_id, spider)
 
     def retry_comment(self, note_id, spider):
         fixed_monitors[spider.userId].failure_comment += 1
         fixed_monitors[spider.userId].success_comment -= 1
-        DynamicMonitor().message = [Handler.now(), '评论状态',
-                                    f'该评论已经被屏蔽，地址是 {Config.NOTE_BASE_URL}{note_id}']
+        dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '评论状态',
+                                                        f'该评论已经被屏蔽，地址是 {Config.NOTE_BASE_URL}{note_id}']
         if spider.isRetryAfterFailure:
             time.sleep(0.314)
             spider.state = 6
@@ -313,14 +321,16 @@ class RetryHandler(Handler):
                         if comment['content'] == fixed_monitors[spider.userId].task_comment and \
                                 comment['user_info']['user_id'] == spider.userId:
                             if comment['status'] != 0:
-                                DynamicMonitor().message = [Handler.now(), '重评状态', f'第 {i + 1} 次评论失败']
+                                dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '重评状态',
+                                                                                f'第 {i + 1} 次评论失败']
                             else:
-                                DynamicMonitor().message = [Handler.now(), '重评状态', f'第 {i + 1} 次评论成功']
+                                dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '重评状态',
+                                                                                f'第 {i + 1} 次评论成功']
                                 fixed_monitors[spider.userId].failure_comment -= 1
                                 fixed_monitors[spider.userId].success_comment += 1
-                                break
+                                return
                 else:
-                    DynamicMonitor().message = [Handler.now(), '重评状态', f'第 {i + 1} 次评论失败']
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '重评状态', f'第 {i + 1} 次评论失败']
 
 
 class CollectHandler(Handler):
@@ -335,7 +345,7 @@ class CollectHandler(Handler):
             if note_id:
                 response = self.note.collect(note_id)
                 if response['code'] != 0:
-                    DynamicMonitor().message = [Handler.now(), '收藏状态', '收藏失败']
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '收藏状态', '收藏失败']
 
 
 class LikeHandler(Handler):
@@ -350,7 +360,7 @@ class LikeHandler(Handler):
             if note_id:
                 response = self.note.like(note_id)
                 if response['code'] != 0:
-                    DynamicMonitor().message = [Handler.now(), '点赞状态', '点赞失败']
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '点赞状态', '点赞失败']
 
 
 class FollowHandler(Handler):
@@ -367,35 +377,36 @@ class FollowHandler(Handler):
                 user_id = self.note.feed(note_id)['data']['items'][0]['note_card']['user']['user_id']
                 response = self.user.follow(user_id)
                 if response['code'] != 0:
-                    DynamicMonitor().message = [Handler.now(), '关注状态', '关注失败']
+                    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '关注状态', '关注失败']
         # 当前任务标记完成
         item = next(((i + 1, note_id) for i, (note_id, state) in enumerate(tasks.items()) if not state), None)
         if item:
             serial_num, note_id = item
             tasks[note_id] = True
             fixed_monitors[spider.userId].task_progress += 1
-            DynamicMonitor().message = [Handler.now(), '任务状态',
-                                        f'第{serial_num}个任务 {Config.NOTE_BASE_URL}{note_id} 完成']
+            dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '任务状态',
+                                                            f'第{serial_num}个任务 {Config.NOTE_BASE_URL}{note_id} 完成']
         else:
             self.next = None
-            DynamicMonitor().message = [Handler.now(), '任务状态', f'该任务异常，请检查后台日志']
+            dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '任务状态', f'该任务异常，请检查后台日志']
         # 非循环模式下 检测总任务是否完成
         if not spider.isCyclicMode and all(tasks.values()):
             self.next = None
-            DynamicMonitor().message = [Handler.now(), '任务状态', f'总任务已完成']
+            dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '任务状态', f'总任务已完成']
         # 循环模式下 并且总任务完成
         if spider.isCyclicMode and all(tasks.values()):
-            DynamicMonitor().message = [Handler.now(), '任务状态', f'循环直到{cal_minute_time(spider.waitTime)}后执行']
+            dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '任务状态',
+                                                            f'循环直到{cal_minute_time(spider.waitTime)}后执行']
             spider.state = 10
             fixed_monitors[spider.userId].state = SpiderState(spider.state).name
             time.sleep(60 * spider.waitTime)
 
 
 def runTask(spider: Spider):
-    if fixed_monitors.get(spider.userId):
+    if fixed_monitors.get(spider.userId) or not spider.tokenId:
         return
     # 构建责任链
-    DynamicMonitor().message = [Handler.now(), '构建责任链', f'配置责任链中，请等待']
+    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '构建责任链', f'配置责任链中，请等待']
     search_handler = SearchHandler()
     uncollect_handler = UncollectHandler()
     skip_collect_handler = SkipCollectHandler()
@@ -413,7 +424,7 @@ def runTask(spider: Spider):
     collect_handler.setNext(like_handler)
     like_handler.setNext(follow_handler)
     follow_handler.setNext(search_handler)
-    DynamicMonitor().message = [Handler.now(), '构建责任链', f'配置责任链关系已完成']
+    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '构建责任链', f'配置责任链关系已完成']
     # Cookies更换
     user_cookie = Cookie(Config.DEFAULT_COOKIES)
     user_cookie.set_cookie("web_session", spider.session)
@@ -424,10 +435,12 @@ def runTask(spider: Spider):
     fixed_monitor.task_count = spider.taskCount
     fixed_monitor.cookies = user_cookie.get_cookie_string()
     fixed_monitors[spider.userId] = fixed_monitor
-    DynamicMonitor().message = [Handler.now(), '监控启动', f'{spider.userId[:6]}...已载入监控屏模型']
+    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '监控启动',
+                                                    f'{spider.userId[:6]}...已载入监控屏模型']
     tasks = {}
     # 线程启动，开始执行任务
     thread = Thread(target=search_handler.handle, kwargs={'spider': spider, 'tasks': tasks}, daemon=True)
     threads.append(thread)
     thread.start()
-    DynamicMonitor().message = [Handler.now(), '线程启动', f'{spider.userId[:6]}...已附加线程并且已经启动']
+    dynamic_monitors.get(spider.tokenId).message = [Handler.now(), '线程启动',
+                                                    f'{spider.userId[:6]}...已附加线程并且已经启动']

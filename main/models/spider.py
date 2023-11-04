@@ -12,6 +12,7 @@ ExcludeKeys = {'qrCodeUrl', 'commentsFile', 'multiKeysFile', 'isPermission', 'ge
 
 class Spider:
     def __init__(self, **kwargs):
+        self.tokenId = None
         self.waitTime = 3
         self.isToFollow = 0
         self.isToLike = 0

@@ -34,7 +34,6 @@ class MySQL:
             sql += ')'
             cursor.execute(sql)
             conn.commit()
-            print(f" * Table {table_name} created successfully")
         except Exception as e:
             conn.rollback()
             print(f" * Failed to create table {table_name}. Error: {e}")
@@ -45,7 +44,6 @@ class MySQL:
             sql = sql or 'SHOW TABLES'
             cursor.execute(sql)
             tables = cursor.fetchall()
-            print(" * Tables in the current database:")
             for table in tables:
                 print(f"\t{table[0]}")
         except Exception as e:
@@ -68,7 +66,6 @@ class MySQL:
             sql = f'INSERT INTO {table} ({keys}) VALUES ({values})'
             cursor.execute(sql, tuple(insert_values))
             conn.commit()
-            print(' * Insert success')
         except Exception as e:
             conn.rollback()
             print(f' * Insert failed. Error: {e}')
@@ -81,7 +78,6 @@ class MySQL:
             sql = f'DELETE FROM {table} WHERE {condition}'
             cursor.execute(sql)
             conn.commit()
-            print(' * Delete success')
         except Exception as e:
             conn.rollback()
             print(f' * Delete failed. Error: {e}')
@@ -102,7 +98,6 @@ class MySQL:
             sql = f'UPDATE {table} SET {update_data} WHERE {condition}'
             cursor.execute(sql, tuple(update_values))
             conn.commit()
-            print(' * Update success')
         except Exception as e:
             conn.rollback()
             print(f' * Update failed. Error: {e}')
@@ -123,7 +118,6 @@ class MySQL:
                 sql += f' WHERE {condition}'
             cursor.execute(sql)
             result = cursor.fetchall()
-            print(f' * Select success. Result: {result}')
             return result
         except Exception as e:
             print(f' * Select failed. Error: {e}')

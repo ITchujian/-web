@@ -38,6 +38,13 @@ def auth(func):
             token = authorization_header.split(" ")[1]
             if Token.is_valid(token, SECRET_KEY):
                 user = Token.unravel(token, SECRET_KEY)
+                user_disable = mysql.select('users', ['is_disabled'], f'uid={user["uid"]!r}')
+                if user_disable and user_disable[0]:
+                    user_disable = user_disable[0][0]
+                else:
+                    return jsonify({'success': False, 'msg': 'User is null', 'token': None}), 404
+                if user_disable:
+                    return jsonify({'success': False, 'msg': 'User is disabled', 'token': None}), 401
                 db_token = mysql.select('sessions', ['uid', 'tokenId'], f'uid={user["uid"]!r}')
                 if not db_token or db_token[0][1] != user['tokenId']:
                     return jsonify({'success': False, 'msg': 'Invalid token', 'token': None}), 401

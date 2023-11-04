@@ -22,8 +22,12 @@ def login():
         return jsonify({'success': False, 'msg': '密码不能为空', 'token': None}), 401
     else:
         password = Password.encrypt(password)
-    user = mysql.select('users', ['uid', 'uname', 'upwd', 'error', 'is_wait', 'wait_time'], f'uname={username!r}')
+    user = mysql.select('users', ['uid', 'uname', 'upwd', 'error', 'is_wait', 'wait_time', 'is_disabled'],
+                        f'uname={username!r}')
     if user and user[0]:
+        if user[0][6]:
+            return jsonify({'success': False, 'msg': '登录失败'}), 403
+
         if user[0][4]:
             if get_current_time() >= user[0][5]:
                 mysql.update('users', {'error': 0, 'is_wait': 0, 'update_time': get_current_time()},
@@ -32,7 +36,7 @@ def login():
                                     f'uname={username!r}')
             else:
                 remain_second = (user[0][5] - get_current_time()).seconds
-                return jsonify({'success': False, 'msg': '登录失败', 'remain_second': remain_second}), 403
+                return jsonify({'success': False, 'msg': '登录失败', 'remain_second': remain_second}), 429
 
         if user[0][2] == password:
             token = Token.create(*user[0][:3], secret_key=SECRET_KEY)
@@ -50,9 +54,9 @@ def login():
             else:
                 mysql.update('users', {'error': user[0][3] + 1, 'update_time': get_current_time()},
                              condition=f'uid={user[0][0]!r}')
-            return jsonify({'success': False, 'msg': '登录失败', 'count': 3 - user[0][3] - 1}), 400
+            return jsonify({'success': False, 'msg': '登录失败', 'count': 3 - user[0][3] - 1}), 401
     else:
-        return jsonify({'success': False, 'msg': '登录失败', 'token': None}), 401
+        return jsonify({'success': False, 'msg': '登录失败', 'token': None}), 404
 
 
 @user_bp.route('/login/state', methods=['GET'])

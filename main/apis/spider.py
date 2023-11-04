@@ -143,6 +143,7 @@ def set_state(user):
     if userId in userIds:
         data = dict(zip(Config.SPIDER_FIELDS, mysql.select('spiders', condition=f'userId={userId!r}')[0]))
         spider = spiderModels.get(userId) if spiderModels.get(userId) else Spider(**data)
+        spider.tokenId = user['tokenId']
         if run == 'false':
             mysql.update('spiders', {'run': 0}, f'userId={userId!r}')
             spider.run = 0

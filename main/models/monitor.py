@@ -7,6 +7,8 @@
 
 fixed_monitors = {}
 
+dynamic_monitors = {}
+
 
 class FixedMonitor:
     def __init__(self):
@@ -48,12 +50,6 @@ class Log:
 
 class DynamicMonitor:
     message = Log()
-    __instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if not cls.__instance:
-            cls.__instance = object.__new__(cls)
-        return cls.__instance
 
 
 if __name__ == '__main__':
