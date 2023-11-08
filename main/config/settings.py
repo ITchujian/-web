@@ -45,10 +45,10 @@ class Config(object):
     DEBUG = False
     TESTING = False
     DATABASE_HOST = 'localhost'
-    DATABASE_USER = 'normal'
-    DATABASE_PASSWORD = '20010908xygGYX'
+    DATABASE_USER = 'your user'
+    DATABASE_PASSWORD = 'your password'
     DATABASE_NAME = 'redbook'
-    DATABASE_CHARSET = 'utf8'
+    DATABASE_CHARSET = 'utf8mb4'
     DATABASE_POOL_MINCACHED = 2
     DATABASE_POOL_MAXCONNECTIONS = 8
     DATABASE_POOL_BLOCKING = True
